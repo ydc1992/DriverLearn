@@ -3,8 +3,10 @@
 #include "ssdt.h"
 
 UNICODE_STRING g_dev_name = RTL_CONSTANT_STRING(L"\\DEVICE\\MyDriver2");
-PDEVICE_OBJECT pDev = NULL;
 UNICODE_STRING pSym = RTL_CONSTANT_STRING(L"\\??\\MyDriver2");
+
+PDEVICE_OBJECT pDev = NULL;
+PDRIVER_OBJECT CurrentDriverObject = NULL;
 
 ULONG_PTR  SSDTDescriptor = 0;
 ULONG_PTR  SSSDTDescriptor = 0;
@@ -45,6 +47,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegPath)
 	DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = ControlPassThrough;
 
 	pDev->Flags &= ~DO_DEVICE_INITIALIZING;
+	CurrentDriverObject = DriverObject;
 	return STATUS_SUCCESS;
 }
 
@@ -69,8 +72,9 @@ NTSTATUS ControlPassThrough(PDEVICE_OBJECT deviceObj, PIRP irp) {
 	ULONG inlen = irpsp->Parameters.DeviceIoControl.InputBufferLength;
 	ULONG oulen = irpsp->Parameters.DeviceIoControl.OutputBufferLength;
 
-	ULONG code = IOCTL_GET_SSSDT;
+	ULONG code = IOCTL_GET_MODULE_NAME;
 
+	WCHAR szModuleName[60] = { 0 };
 	//
 	PVOID SSSDTFunctionAddress=NULL;
 
@@ -97,6 +101,9 @@ NTSTATUS ControlPassThrough(PDEVICE_OBJECT deviceObj, PIRP irp) {
 			irp->IoStatus.Information = sizeof(PVOID);
 			return irp->IoStatus.Status;
 		}
+	case IOCTL_GET_MODULE_NAME:
+		GetSysModuleByLdrDataTable(buffer, szModuleName);
+
 
 	default:
 		status = STATUS_INVALID_PARAMETER;

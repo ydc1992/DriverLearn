@@ -1,5 +1,6 @@
 #include "common.h"
 
+extern PDRIVER_OBJECT CurrentDriverObject;
 //************************************
 // Method:    GetSSDTFunctionAddress
 // FullName:  GetSSDTFunctionAddress
@@ -84,4 +85,48 @@ PVOID GetKeShadowServiceDescriptorTable32()
 		}
 	}
 	return 0;
+}
+
+BOOLEAN GetSysModuleByLdrDataTable(PVOID addre, WCHAR* szModuleName) {
+
+
+	ULONG_PTR ulBase;
+	ULONG ulSize;
+
+	if (CurrentDriverObject)
+	{
+		PKLDR_DATA_TABLE_ENTRY ListHead = NULL, ListNext = NULL;
+		ListHead = ListNext = (PKLDR_DATA_TABLE_ENTRY)CurrentDriverObject->DriverSection;
+
+		while ((PKLDR_DATA_TABLE_ENTRY)ListNext->InLoadOrderLinks.Flink != ListHead)
+		{
+			ulBase = ListNext->DllBase;
+			ulSize = ListNext->SizeOfImage;
+			BOOLEAN bRet = FALSE;
+
+			if (ulBase != 0)
+			{
+				_try
+				{
+					DbgPrint("[SSDT]%wZ\r\n",&ListNext->BaseDllName);
+					DbgPrint("[SSDT]%wZ\r\n",&(ListNext->FullDllName));
+
+					memcpy(szModuleName,(WCHAR*)(((ListNext)->FullDllName).Buffer),sizeof(WCHAR) * 60);
+
+				}
+				_except(EXCEPTION_EXECUTE_HANDLER)
+				{
+					DbgPrint("EXCEEPTION:%d", GetExceptionCode());
+				}
+				bRet = TRUE;
+				break;
+
+			}
+
+			ListNext = (PKLDR_DATA_TABLE_ENTRY)ListNext->InLoadOrderLinks.Flink;
+		}
+
+	}
+
+	return TRUE;
 }
