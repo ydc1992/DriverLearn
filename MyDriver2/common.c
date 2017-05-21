@@ -1,5 +1,7 @@
 #include "common.h"
 
+typedef NTSTATUS(*pfnRtlGetVersion)(PRTL_OSVERSIONINFOW lpVersionInformation);
+
 //************************************
 // Method:    GetWindowsVersion
 // FullName:  GetWindowsVersion

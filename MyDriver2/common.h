@@ -12,4 +12,3 @@ typedef enum WIN_VERSION {
 } WIN_VERSION;
 
 WIN_VERSION GetWindowsVersion();
-typedef NTSTATUS(*pfnRtlGetVersion)(PRTL_OSVERSIONINFOW lpVersionInformation);
