@@ -1,16 +1,24 @@
 #include "main.h"
 #include "process.h"
+#include "ssdt.h"
 
-UNICODE_STRING g_dev_name = RTL_CONSTANT_STRING(L"\\DEVICE\\Ken");
+UNICODE_STRING g_dev_name = RTL_CONSTANT_STRING(L"\\DEVICE\\MyDriver2");
 PDEVICE_OBJECT pDev = NULL;
-UNICODE_STRING pSym = RTL_CONSTANT_STRING(L"\\??\\Ken");
+UNICODE_STRING pSym = RTL_CONSTANT_STRING(L"\\??\\MyDriver2");
+
+ULONG_PTR  SSDTDescriptor = 0;
+ULONG_PTR  SSSDTDescriptor = 0;
 
 
-#define CTRL_HIDE_PROCESS \
-	(ULONG)CTL_CODE(FILE_DEVICE_UNKNOWN,0x911,METHOD_BUFFERED,FILE_WRITE_DATA)
+NTSTATUS DefaultPassThrough(PDEVICE_OBJECT  DeviceObject, PIRP Irp)
+{
+	Irp->IoStatus.Information = 0;
+	Irp->IoStatus.Status = STATUS_SUCCESS;
 
+	IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
-
+	return STATUS_SUCCESS;
+}
 
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegPath) 
 {
@@ -31,45 +39,77 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegPath)
 
 	for (int i = 0; i < IRP_MJ_MAXIMUM_FUNCTION; i++)
 	{
-		DriverObject->MajorFunction[i] = myDispatch;
+		DriverObject->MajorFunction[i] = DefaultPassThrough;
 	}
+
+	DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = ControlPassThrough;
+
+	pDev->Flags &= ~DO_DEVICE_INITIALIZING;
 	return STATUS_SUCCESS;
 }
 
 
-NTSTATUS myDispatch(PDEVICE_OBJECT deviceObj, PIRP irp) {
+//************************************
+// Method:    ControlPassThrough
+// FullName:  ControlPassThrough
+// Access:    public 
+// Returns:   NTSTATUS
+// Qualifier: 设备控制分发函数
+// Parameter: PDEVICE_OBJECT deviceObj
+// Parameter: PIRP irp
+//************************************
+NTSTATUS ControlPassThrough(PDEVICE_OBJECT deviceObj, PIRP irp) {
 	PIO_STACK_LOCATION irpsp = IoGetCurrentIrpStackLocation(irp);
 	NTSTATUS status = STATUS_SUCCESS;
 	ULONG ret_len = 0;
 
-	while (deviceObj == pDev)
+	//IRP Params
+	PVOID buffer = irp->AssociatedIrp.SystemBuffer;
+
+	ULONG inlen = irpsp->Parameters.DeviceIoControl.InputBufferLength;
+	ULONG oulen = irpsp->Parameters.DeviceIoControl.OutputBufferLength;
+
+	ULONG code = IOCTL_GET_SSSDT;
+
+	//
+	PVOID SSSDTFunctionAddress=NULL;
+
+	switch (irpsp->Parameters.DeviceIoControl.IoControlCode)
 	{
+	case IOCTL_HIDE_PROCESS:
+		HideProcess((char*)buffer);
+		break;
+	case IOCTL_GET_SSSDT:
+		SSSDTDescriptor = (ULONG_PTR)GetKeShadowServiceDescriptorTable32();
+		break;
 
-		if (irpsp->MajorFunction==IRP_MJ_CREATE || irpsp->MajorFunction==IRP_MJ_CLOSE)
+	case IOCTL_GET_SSSDT_FUNCTIONADDRESS:
+		SSSDTDescriptor = (ULONG_PTR)GetKeShadowServiceDescriptorTable32();
+		if ((VOID*)SSSDTDescriptor==NULL)
 			break;
-
-		if (irpsp->MajorFunction==IRP_MJ_DEVICE_CONTROL)
+		if (buffer==NULL)
+			break;
+		SSSDTFunctionAddress = GetSSSDTFunctionAddrress(*(ULONG*)buffer, SSSDTDescriptor);
+		if (SSSDTFunctionAddress != NULL)
 		{
-			PVOID buffer = irp->AssociatedIrp.SystemBuffer;
-
-			ULONG inlen = irpsp->Parameters.DeviceIoControl.InputBufferLength;
-			ULONG oulen = irpsp->Parameters.DeviceIoControl.OutputBufferLength;
-
-			switch (irpsp->Parameters.DeviceIoControl.IoControlCode)
-			{
-			case CTRL_HIDE_PROCESS:
-				break;
-			}
-
-
+			DbgPrint("%x", SSSDTFunctionAddress);
+			memcpy(buffer, &SSSDTFunctionAddress, sizeof(PVOID));
+			irp->IoStatus.Information = sizeof(PVOID);
+			return irp->IoStatus.Status;
 		}
 
-
+	default:
+		status = STATUS_INVALID_PARAMETER;
+		break;
 	}
 
+	irp->IoStatus.Information = 0;
+	irp->IoStatus.Status = STATUS_SUCCESS;
 
+	IoCompleteRequest(irp, IO_NO_INCREMENT);
 	return STATUS_SUCCESS;
 }
+
 
 
 VOID UnloadDriver(PDRIVER_OBJECT  DriverObject)

