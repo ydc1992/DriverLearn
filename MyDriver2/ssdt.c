@@ -4,7 +4,7 @@ extern PDRIVER_OBJECT CurrentDriverObject;
 //************************************
 // Method:    GetSSDTFunctionAddress
 // FullName:  GetSSDTFunctionAddress
-// Access:    public 
+// Access:    public
 // Returns:   PVOID
 // Qualifier: 通过索引获取从SSDT获取对应函数地址
 // Parameter: ULONG_PTR uIndex
@@ -22,7 +22,7 @@ PVOID GetSSDTFunctionAddress(ULONG_PTR uIndex, ULONG_PTR SSDTDescriptor)
 //************************************
 // Method:    GetSSSDTFunctionAddrress
 // FullName:  GetSSSDTFunctionAddrress
-// Access:    public 
+// Access:    public
 // Returns:   PVOID
 // Qualifier: 通过索引获取从SSDT获取对应函数地址
 // Parameter: ULONG_PTR uIndex
@@ -30,17 +30,19 @@ PVOID GetSSDTFunctionAddress(ULONG_PTR uIndex, ULONG_PTR SSDTDescriptor)
 //************************************
 PVOID GetSSSDTFunctionAddrress(ULONG_PTR uIndex, ULONG_PTR SSDTDescriptor)
 {
+	if (uIndex > 0x1000)
+		return NULL;
+
 	ULONG_PTR ServicesTableBase = 0;
 	PSYSTEM_SERVICE_TABLE SSSDT = (PSYSTEM_SERVICE_TABLE)SSDTDescriptor;
 	ServicesTableBase = (ULONG_PTR)(SSSDT->ServiceTableBase);
 	return (PVOID)(*(PULONG_PTR)((ULONG_PTR)ServicesTableBase + 4 * uIndex));
 }
 
-
 //************************************
 // Method:    GetKeShadowServiceDescriptorTable32
 // FullName:  GetKeShadowServiceDescriptorTable32
-// Access:    public 
+// Access:    public
 // Returns:   PVOID
 // Qualifier: lea     ecx,nt!KeServiceDescriptorTableShadow这里存放着SSDT
 //************************************
@@ -71,12 +73,12 @@ PVOID GetKeShadowServiceDescriptorTable32()
 		return 0;
 	}
 
-	for (i = StartAddress; i<StartAddress + PAGE_SIZE; i++)
+	for (i = StartAddress; i < StartAddress + PAGE_SIZE; i++)
 	{
 		//if (MmIsAddressValid(i) && MmIsAddressValid(i + 1))
 		v1 = *i;
 		v2 = *(i + 1);
-		if (v1 == 0x8d && v2 == 0x88) 
+		if (v1 == 0x8d && v2 == 0x88)
 		{
 			SSSDTDescriptor = *(ULONG_PTR*)(i + 2);
 			SSSDTDescriptor = SSSDTDescriptor + 16;
@@ -87,11 +89,20 @@ PVOID GetKeShadowServiceDescriptorTable32()
 	return 0;
 }
 
+//************************************
+// Method:    GetSysModuleByLdrDataTable
+// FullName:  GetSysModuleByLdrDataTable
+// Access:    public 
+// Returns:   BOOLEAN
+// Qualifier: DriverSection保存着驱动模块的相关信息
+// Parameter: PVOID addre
+// Parameter: WCHAR * szModuleName
+//************************************
 BOOLEAN GetSysModuleByLdrDataTable(PVOID addre, WCHAR* szModuleName) {
-
-
 	ULONG_PTR ulBase;
 	ULONG ulSize;
+
+	ULONG_PTR address = *(ULONG_PTR*)addre;
 
 	if (CurrentDriverObject)
 	{
@@ -104,28 +115,30 @@ BOOLEAN GetSysModuleByLdrDataTable(PVOID addre, WCHAR* szModuleName) {
 			ulSize = ListNext->SizeOfImage;
 			BOOLEAN bRet = FALSE;
 
+			DbgPrint("[SSDT] BaseName %wZ\r\n", &ListNext->BaseDllName);
+
 			if (ulBase != 0)
-			{
-				_try
+			{   //通过基址和镜像大小确定属于哪个模块
+
+				if (address > ulBase && address < ulSize + ulBase)
 				{
-					DbgPrint("[SSDT]%wZ\r\n",&ListNext->BaseDllName);
-					DbgPrint("[SSDT]%wZ\r\n",&(ListNext->FullDllName));
+					_try
+					{
+						DbgPrint("[SSDT]%wZ\r\n",&ListNext->BaseDllName);
+						DbgPrint("[SSDT]%wZ\r\n",&(ListNext->FullDllName));
 
-					memcpy(szModuleName,(WCHAR*)(((ListNext)->FullDllName).Buffer),sizeof(WCHAR) * 60);
-
+						memcpy(szModuleName,(WCHAR*)(((ListNext)->FullDllName).Buffer),sizeof(WCHAR) * 60);
+					}
+						_except(EXCEPTION_EXECUTE_HANDLER)
+					{
+						DbgPrint("EXCEEPTION:%d", GetExceptionCode());
+					}
+					bRet = TRUE;
+					break;
 				}
-				_except(EXCEPTION_EXECUTE_HANDLER)
-				{
-					DbgPrint("EXCEEPTION:%d", GetExceptionCode());
-				}
-				bRet = TRUE;
-				break;
-
 			}
-
 			ListNext = (PKLDR_DATA_TABLE_ENTRY)ListNext->InLoadOrderLinks.Flink;
 		}
-
 	}
 
 	return TRUE;

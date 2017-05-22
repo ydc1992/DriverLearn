@@ -11,7 +11,6 @@ PDRIVER_OBJECT CurrentDriverObject = NULL;
 ULONG_PTR  SSDTDescriptor = 0;
 ULONG_PTR  SSSDTDescriptor = 0;
 
-
 NTSTATUS DefaultPassThrough(PDEVICE_OBJECT  DeviceObject, PIRP Irp)
 {
 	Irp->IoStatus.Information = 0;
@@ -22,14 +21,14 @@ NTSTATUS DefaultPassThrough(PDEVICE_OBJECT  DeviceObject, PIRP Irp)
 	return STATUS_SUCCESS;
 }
 
-NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegPath) 
+NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegPath)
 {
 	NTSTATUS status = STATUS_SUCCESS;
 
 	DbgPrint("DriverEntry\r\n");
 	DriverObject->DriverUnload = UnloadDriver;
 
-	status =  IoCreateDevice(DriverObject, 0, &g_dev_name, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &pDev);
+	status = IoCreateDevice(DriverObject, 0, &g_dev_name, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &pDev);
 	if (!NT_SUCCESS(status))
 	{
 		DbgPrint("Create Device Faild");
@@ -51,11 +50,10 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegPath)
 	return STATUS_SUCCESS;
 }
 
-
 //************************************
 // Method:    ControlPassThrough
 // FullName:  ControlPassThrough
-// Access:    public 
+// Access:    public
 // Returns:   NTSTATUS
 // Qualifier: 设备控制分发函数
 // Parameter: PDEVICE_OBJECT deviceObj
@@ -76,7 +74,10 @@ NTSTATUS ControlPassThrough(PDEVICE_OBJECT deviceObj, PIRP irp) {
 
 	WCHAR szModuleName[60] = { 0 };
 	//
-	PVOID SSSDTFunctionAddress=NULL;
+	PVOID SSSDTFunctionAddress = NULL;
+
+	//都需要这个，放在外面
+	SSSDTDescriptor = (ULONG_PTR)GetKeShadowServiceDescriptorTable32();
 
 	switch (irpsp->Parameters.DeviceIoControl.IoControlCode)
 	{
@@ -84,14 +85,13 @@ NTSTATUS ControlPassThrough(PDEVICE_OBJECT deviceObj, PIRP irp) {
 		HideProcess((char*)buffer);
 		break;
 	case IOCTL_GET_SSSDT:
-		SSSDTDescriptor = (ULONG_PTR)GetKeShadowServiceDescriptorTable32();
 		break;
 
 	case IOCTL_GET_SSSDT_FUNCTIONADDRESS:
-		SSSDTDescriptor = (ULONG_PTR)GetKeShadowServiceDescriptorTable32();
-		if ((VOID*)SSSDTDescriptor==NULL)
+	{
+		if ((PVOID)SSSDTDescriptor == NULL)
 			break;
-		if (buffer==NULL)
+		if (buffer == NULL)
 			break;
 		SSSDTFunctionAddress = GetSSSDTFunctionAddrress(*(ULONG*)buffer, SSSDTDescriptor);
 		if (SSSDTFunctionAddress != NULL)
@@ -101,10 +101,20 @@ NTSTATUS ControlPassThrough(PDEVICE_OBJECT deviceObj, PIRP irp) {
 			irp->IoStatus.Information = sizeof(PVOID);
 			return irp->IoStatus.Status;
 		}
+		break;
+	}
 	case IOCTL_GET_MODULE_NAME:
-		GetSysModuleByLdrDataTable(buffer, szModuleName);
+	{
+		if ((PVOID)SSSDTDescriptor == NULL)
+			break;
+		if (buffer == NULL)
+			break;
+		SSSDTFunctionAddress = GetSSSDTFunctionAddrress(*(ULONG*)buffer, SSSDTDescriptor);
 
-
+		if ((PVOID)SSSDTDescriptor)
+			GetSysModuleByLdrDataTable(SSSDTFunctionAddress, szModuleName);
+		break;
+	}
 	default:
 		status = STATUS_INVALID_PARAMETER;
 		break;
@@ -116,8 +126,6 @@ NTSTATUS ControlPassThrough(PDEVICE_OBJECT deviceObj, PIRP irp) {
 	IoCompleteRequest(irp, IO_NO_INCREMENT);
 	return STATUS_SUCCESS;
 }
-
-
 
 VOID UnloadDriver(PDRIVER_OBJECT  DriverObject)
 {
